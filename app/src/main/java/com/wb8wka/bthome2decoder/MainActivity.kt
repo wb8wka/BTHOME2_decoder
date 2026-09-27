@@ -11,9 +11,8 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
 
@@ -63,8 +62,8 @@ fun AppRoot(viewModel: MainViewModel) {
         return
     }
 
-    val devices by viewModel.filteredDevices.collectAsStateWithLifecycle()
-    val filterText by viewModel.filterText.collectAsStateWithLifecycle()
+    val devices by viewModel.filteredDevices.collectAsState()
+    val filterText by viewModel.filterText.collectAsState()
 
     if (selectedDevice == null) {
         DeviceListScreen(
