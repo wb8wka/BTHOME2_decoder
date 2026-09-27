@@ -38,9 +38,7 @@ class BleScanner(context: Context) {
 
     private val callback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult) {
-            _diagnostics.update {
-                it.copy(advertisementsSeen = it.advertisementsSeen + 1, bluetoothEnabled = isBluetoothEnabled())
-            }
+            _diagnostics.update { it.copy(advertisementsSeen = it.advertisementsSeen + 1, bluetoothEnabled = isBluetoothEnabled()) }
             val record = result.scanRecord ?: return
             val serviceData = extractBTHomeServiceData(record.serviceData, record.bytes) ?: return
             _diagnostics.update { it.copy(bthomePacketsSeen = it.bthomePacketsSeen + 1) }
@@ -56,9 +54,7 @@ class BleScanner(context: Context) {
 
         override fun onScanFailed(errorCode: Int) {
             scanning = false
-            _diagnostics.update {
-                it.copy(scanFailureCode = errorCode, scanStarted = false, status = "Android scan failed: $errorCode")
-            }
+            _diagnostics.update { it.copy(scanFailureCode = errorCode, scanStarted = false, status = "Android scan failed: $errorCode") }
         }
     }
 
@@ -76,19 +72,17 @@ class BleScanner(context: Context) {
             _diagnostics.update { it.copy(scanStarted = false, status = "BLE scanner unavailable") }
             return
         }
-        _diagnostics.update {
-            it.copy(scanFailureCode = null, bluetoothEnabled = true, scanStarted = true, status = "Scanning")
-        }
+        _diagnostics.update { it.copy(scanFailureCode = null, bluetoothEnabled = true, scanStarted = true, status = "Scanning (live updates)") }
         try {
             val settings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .setCallbackType(ScanSettings.CALLBACK_TYPE_ALL_MATCHES)
+                .setReportDelay(0L)
                 .build()
             leScanner.startScan(null, settings, callback)
             scanning = true
         } catch (e: SecurityException) {
-            _diagnostics.update {
-                it.copy(scanStarted = false, status = "BLUETOOTH_SCAN permission missing: ${e.message}")
-            }
+            _diagnostics.update { it.copy(scanStarted = false, status = "BLUETOOTH_SCAN permission missing: ${e.message}") }
         } catch (e: Exception) {
             _diagnostics.update { it.copy(scanStarted = false, status = "Could not start scan: ${e.message}") }
         }
@@ -104,14 +98,13 @@ class BleScanner(context: Context) {
 
     fun clear() {
         _devices.value = emptyMap()
-        _diagnostics.value = Diagnostics(bluetoothEnabled = isBluetoothEnabled(), scanStarted = scanning, status = if (scanning) "Scanning" else "Cleared")
+        _diagnostics.value = Diagnostics(bluetoothEnabled = isBluetoothEnabled(), scanStarted = scanning, status = if (scanning) "Scanning (live updates)" else "Cleared")
     }
 
     private fun extractBTHomeServiceData(serviceDataMap: Map<ParcelUuid, ByteArray>?, rawRecord: ByteArray?): ByteArray? {
         serviceDataMap?.get(BTHOME_UUID)?.let { return it }
         serviceDataMap?.entries?.firstOrNull { (uuid, _) ->
-            uuid.uuid.mostSignificantBits == BTHOME_UUID.uuid.mostSignificantBits &&
-                uuid.uuid.leastSignificantBits == BTHOME_UUID.uuid.leastSignificantBits
+            uuid.uuid.mostSignificantBits == BTHOME_UUID.uuid.mostSignificantBits && uuid.uuid.leastSignificantBits == BTHOME_UUID.uuid.leastSignificantBits
         }?.value?.let { return it }
         return extractServiceDataFromRawAd(rawRecord)
     }
@@ -123,10 +116,7 @@ class BleScanner(context: Context) {
             val length = raw[offset].toInt() and 0xFF
             if (length == 0) break
             val next = offset + length + 1
-            if (next > raw.size || length < 3) {
-                offset += length + 1
-                continue
-            }
+            if (next > raw.size || length < 3) { offset += length + 1; continue }
             if ((raw[offset + 1].toInt() and 0xFF) == 0x16) {
                 val uuidLo = raw[offset + 2].toInt() and 0xFF
                 val uuidHi = raw[offset + 3].toInt() and 0xFF

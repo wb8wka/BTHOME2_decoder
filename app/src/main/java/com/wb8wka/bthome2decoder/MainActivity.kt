@@ -1,7 +1,6 @@
 package com.wb8wka.bthome2decoder
 
 import android.Manifest
-import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,7 +16,6 @@ import androidx.compose.ui.Modifier
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme { AppRoot(viewModel) } }
@@ -31,13 +29,12 @@ private fun requiredPermissions(): Array<String> =
 @Composable
 fun AppRoot(viewModel: MainViewModel) {
     var permissionGranted by remember { mutableStateOf(false) }
-    var selectedDevice by remember { mutableStateOf<BleDevice?>(null) }
+    var selectedAddress by remember { mutableStateOf<String?>(null) }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
         permissionGranted = result.values.all { it }
         if (permissionGranted) viewModel.startScan()
     }
-
     LaunchedEffect(Unit) { launcher.launch(requiredPermissions()) }
     DisposableEffect(permissionGranted) {
         if (permissionGranted) viewModel.startScan()
@@ -45,26 +42,25 @@ fun AppRoot(viewModel: MainViewModel) {
     }
 
     if (!permissionGranted) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Bluetooth scan permission is required to scan for BTHome devices.")
-        }
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Bluetooth scan permission is required to scan for BTHome devices.") }
         return
     }
 
     val devices by viewModel.filteredDevices.collectAsState()
     val filterText by viewModel.filterText.collectAsState()
     val diagnostics by viewModel.diagnostics.collectAsState()
+    val currentDevice = selectedAddress?.let { address -> devices.firstOrNull { it.address == address } }
 
-    if (selectedDevice == null) {
+    if (selectedAddress == null || currentDevice == null) {
         DeviceListScreen(
             devices = devices,
             filterText = filterText,
             diagnostics = diagnostics,
             onFilterChange = viewModel::setFilter,
             onClear = viewModel::clear,
-            onDeviceClick = { selectedDevice = it }
+            onDeviceClick = { selectedAddress = it.address }
         )
     } else {
-        DeviceDetailScreen(device = selectedDevice!!, keyStore = viewModel.keyStore, onBack = { selectedDevice = null })
+        DeviceDetailScreen(device = currentDevice, keyStore = viewModel.keyStore, onBack = { selectedAddress = null })
     }
 }
