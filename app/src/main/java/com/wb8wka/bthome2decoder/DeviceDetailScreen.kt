@@ -10,7 +10,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 
@@ -21,7 +20,7 @@ fun DeviceDetailScreen(
     keyStore: KeyStore,
     onBack: () -> Unit
 ) {
-    val storedKeyHex by keyStore.keyHexFlow(device.address).collectAsStateWithLifecycle(initialValue = null)
+    val storedKeyHex by keyStore.keyHexFlow(device.address).collectAsState(initial = null)
     var keyInput by remember(storedKeyHex) { mutableStateOf(storedKeyHex ?: "") }
     var keyError by remember { mutableStateOf<String?>(null) }
 
@@ -57,10 +56,7 @@ fun DeviceDetailScreen(
                 Text("Encryption key (32 hex chars / 16 bytes)", style = MaterialTheme.typography.titleSmall)
                 OutlinedTextField(
                     value = keyInput,
-                    onValueChange = {
-                        keyInput = it
-                        keyError = null
-                    },
+                    onValueChange = { keyInput = it; keyError = null },
                     singleLine = true,
                     label = { Text("AES key hex") },
                     supportingText = { keyError?.let { Text(it) } },
@@ -95,7 +91,6 @@ fun DeviceDetailScreen(
 
                 Spacer(Modifier.height(16.dp))
                 Text("Decoded BTHome v2 fields", style = MaterialTheme.typography.titleSmall)
-
                 if (parsed.error != null) {
                     Spacer(Modifier.height(4.dp))
                     Text(parsed.error, color = MaterialTheme.colorScheme.error)
@@ -110,13 +105,11 @@ fun DeviceDetailScreen(
                 )
                 HorizontalDivider()
             }
-
             item { Spacer(Modifier.height(24.dp)) }
         }
     }
 }
 
 private fun keyStoreSetKey(keyStore: KeyStore, mac: String, hex: String) {
-    // Fire-and-forget write; the UI observes keyHexFlow for the persisted result.
     GlobalScope.launch { keyStore.setKeyHex(mac, hex) }
 }
