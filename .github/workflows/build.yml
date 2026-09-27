@@ -1,4 +1,4 @@
-name: Build APK
+name: Build BTHome2 Decoder APK
 
 on:
   push:
@@ -23,11 +23,11 @@ jobs:
         with:
           gradle-version: "8.7"
 
-      - name: Build debug APK
+      - name: Build BTHome2 Decoder debug APK
         run: gradle assembleDebug --no-daemon
 
-      - name: Upload APK artifact
+      - name: Upload BTHome2 Decoder APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: BTHome2-Decoder-APK
+          path: app/build/outputs/apk/debug/BTHome2-Decoder-debug.apk

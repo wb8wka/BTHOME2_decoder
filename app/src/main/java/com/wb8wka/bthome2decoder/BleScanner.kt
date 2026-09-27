@@ -13,20 +13,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-/**
- * Scans BLE advertisements and extracts BTHome v2 service data (UUID 0xFCD2).
- *
- * Android vendors differ in how they normalize 16-bit UUIDs in ScanRecord.serviceData.
- * This scanner therefore checks the direct UUID lookup, every service-data map entry,
- * and (as a final fallback) parses the raw AD structures for Service Data 16-bit (0x16).
- */
 class BleScanner(context: Context) {
 
     data class Diagnostics(
         val advertisementsSeen: Long = 0,
         val bthomePacketsSeen: Long = 0,
         val scanFailureCode: Int? = null,
-        val bluetoothEnabled: Boolean = false
+        val bluetoothEnabled: Boolean = false,
+        val scanStarted: Boolean = false,
+        val status: String = "Initializing"
     )
 
     private val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
@@ -46,10 +41,8 @@ class BleScanner(context: Context) {
             _diagnostics.update {
                 it.copy(advertisementsSeen = it.advertisementsSeen + 1, bluetoothEnabled = isBluetoothEnabled())
             }
-
             val record = result.scanRecord ?: return
             val serviceData = extractBTHomeServiceData(record.serviceData, record.bytes) ?: return
-
             _diagnostics.update { it.copy(bthomePacketsSeen = it.bthomePacketsSeen + 1) }
             val entry = BleDevice(
                 address = result.device.address,
@@ -62,8 +55,10 @@ class BleScanner(context: Context) {
         }
 
         override fun onScanFailed(errorCode: Int) {
-            _diagnostics.update { it.copy(scanFailureCode = errorCode, bluetoothEnabled = isBluetoothEnabled()) }
             scanning = false
+            _diagnostics.update {
+                it.copy(scanFailureCode = errorCode, scanStarted = false, status = "Android scan failed: $errorCode")
+            }
         }
     }
 
@@ -72,12 +67,31 @@ class BleScanner(context: Context) {
     @SuppressLint("MissingPermission")
     fun startScan() {
         if (scanning) return
-        _diagnostics.update { it.copy(scanFailureCode = null, bluetoothEnabled = isBluetoothEnabled()) }
-        val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-            .build()
-        scanner?.startScan(null, settings, callback)
-        scanning = true
+        if (!isBluetoothEnabled()) {
+            _diagnostics.update { it.copy(bluetoothEnabled = false, scanStarted = false, status = "Bluetooth is off") }
+            return
+        }
+        val leScanner = scanner
+        if (leScanner == null) {
+            _diagnostics.update { it.copy(scanStarted = false, status = "BLE scanner unavailable") }
+            return
+        }
+        _diagnostics.update {
+            it.copy(scanFailureCode = null, bluetoothEnabled = true, scanStarted = true, status = "Scanning")
+        }
+        try {
+            val settings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+                .build()
+            leScanner.startScan(null, settings, callback)
+            scanning = true
+        } catch (e: SecurityException) {
+            _diagnostics.update {
+                it.copy(scanStarted = false, status = "BLUETOOTH_SCAN permission missing: ${e.message}")
+            }
+        } catch (e: Exception) {
+            _diagnostics.update { it.copy(scanStarted = false, status = "Could not start scan: ${e.message}") }
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -85,28 +99,20 @@ class BleScanner(context: Context) {
         if (!scanning) return
         scanner?.stopScan(callback)
         scanning = false
+        _diagnostics.update { it.copy(scanStarted = false, status = "Scan stopped") }
     }
 
     fun clear() {
         _devices.value = emptyMap()
-        _diagnostics.value = Diagnostics(bluetoothEnabled = isBluetoothEnabled())
+        _diagnostics.value = Diagnostics(bluetoothEnabled = isBluetoothEnabled(), scanStarted = scanning, status = if (scanning) "Scanning" else "Cleared")
     }
 
-    private fun extractBTHomeServiceData(
-        serviceDataMap: Map<ParcelUuid, ByteArray>?,
-        rawRecord: ByteArray?
-    ): ByteArray? {
-        // Normal Android representation: 0000fcd2-0000-1000-8000-00805f9b34fb.
+    private fun extractBTHomeServiceData(serviceDataMap: Map<ParcelUuid, ByteArray>?, rawRecord: ByteArray?): ByteArray? {
         serviceDataMap?.get(BTHOME_UUID)?.let { return it }
-
-        // Defensive map match: accommodates vendor-specific ParcelUuid normalization.
         serviceDataMap?.entries?.firstOrNull { (uuid, _) ->
             uuid.uuid.mostSignificantBits == BTHOME_UUID.uuid.mostSignificantBits &&
                 uuid.uuid.leastSignificantBits == BTHOME_UUID.uuid.leastSignificantBits
         }?.value?.let { return it }
-
-        // Last resort: parse AD structures directly. Type 0x16 is Service Data - 16-bit UUID;
-        // UUID bytes are little-endian, so BTHome appears as D2 FC.
         return extractServiceDataFromRawAd(rawRecord)
     }
 
@@ -121,13 +127,10 @@ class BleScanner(context: Context) {
                 offset += length + 1
                 continue
             }
-            val type = raw[offset + 1].toInt() and 0xFF
-            if (type == 0x16) {
+            if ((raw[offset + 1].toInt() and 0xFF) == 0x16) {
                 val uuidLo = raw[offset + 2].toInt() and 0xFF
                 val uuidHi = raw[offset + 3].toInt() and 0xFF
-                if (uuidLo == 0xD2 && uuidHi == 0xFC) {
-                    return raw.copyOfRange(offset + 4, next)
-                }
+                if (uuidLo == 0xD2 && uuidHi == 0xFC) return raw.copyOfRange(offset + 4, next)
             }
             offset = next
         }

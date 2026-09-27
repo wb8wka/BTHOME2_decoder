@@ -1,6 +1,7 @@
 package com.wb8wka.bthome2decoder
 
 import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -24,31 +25,28 @@ class MainActivity : ComponentActivity() {
 }
 
 private fun requiredPermissions(): Array<String> =
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        arrayOf(Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.BLUETOOTH_CONNECT)
-    } else {
-        arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
-    }
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) arrayOf(Manifest.permission.BLUETOOTH_SCAN)
+    else arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
 
 @Composable
 fun AppRoot(viewModel: MainViewModel) {
-    var permissionsGranted by remember { mutableStateOf(false) }
+    var permissionGranted by remember { mutableStateOf(false) }
     var selectedDevice by remember { mutableStateOf<BleDevice?>(null) }
 
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
-        permissionsGranted = result.values.all { it }
-        if (permissionsGranted) viewModel.startScan()
+        permissionGranted = result.values.all { it }
+        if (permissionGranted) viewModel.startScan()
     }
 
     LaunchedEffect(Unit) { launcher.launch(requiredPermissions()) }
-    DisposableEffect(permissionsGranted) {
-        if (permissionsGranted) viewModel.startScan()
+    DisposableEffect(permissionGranted) {
+        if (permissionGranted) viewModel.startScan()
         onDispose { viewModel.stopScan() }
     }
 
-    if (!permissionsGranted) {
+    if (!permissionGranted) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Bluetooth permissions are required to scan for BTHome devices.")
+            Text("Bluetooth scan permission is required to scan for BTHome devices.")
         }
         return
     }
@@ -67,10 +65,6 @@ fun AppRoot(viewModel: MainViewModel) {
             onDeviceClick = { selectedDevice = it }
         )
     } else {
-        DeviceDetailScreen(
-            device = selectedDevice!!,
-            keyStore = viewModel.keyStore,
-            onBack = { selectedDevice = null }
-        )
+        DeviceDetailScreen(device = selectedDevice!!, keyStore = viewModel.keyStore, onBack = { selectedDevice = null })
     }
 }

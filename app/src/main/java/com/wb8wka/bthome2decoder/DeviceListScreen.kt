@@ -29,9 +29,7 @@ fun DeviceListScreen(
                 title = { Text("BTHome v2 Devices") },
                 actions = {
                     Icon(Icons.Filled.BluetoothSearching, contentDescription = "Scanning")
-                    IconButton(onClick = onClear) {
-                        Icon(Icons.Filled.Clear, contentDescription = "Clear device list and counters")
-                    }
+                    IconButton(onClick = onClear) { Icon(Icons.Filled.Clear, contentDescription = "Clear device list and counters") }
                 }
             )
         }
@@ -44,18 +42,16 @@ fun DeviceListScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(12.dp)
             )
+            Text("Status: ${diagnostics.status}", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(horizontal = 12.dp))
             Text(
-                text = "BLE ads: ${diagnostics.advertisementsSeen}   BTHome packets: ${diagnostics.bthomePacketsSeen}" +
-                    if (diagnostics.scanFailureCode != null) "   Scan error: ${diagnostics.scanFailureCode}" else "",
+                text = "Bluetooth: ${if (diagnostics.bluetoothEnabled) "on" else "off"}  •  BLE ads: ${diagnostics.advertisementsSeen}  •  BTHome: ${diagnostics.bthomePacketsSeen}" +
+                    if (diagnostics.scanFailureCode != null) "  •  Error: ${diagnostics.scanFailureCode}" else "",
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(horizontal = 12.dp)
             )
             Spacer(Modifier.height(8.dp))
-
             if (devices.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text("No BTHome advertisements seen yet.")
-                }
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("No BTHome advertisements seen yet.") }
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     items(devices, key = { it.address }) { device ->
