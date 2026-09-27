@@ -14,6 +14,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val scanner = BleScanner(application)
     val keyStore = KeyStore(application)
+    val diagnostics: StateFlow<BleScanner.Diagnostics> = scanner.diagnostics
 
     val devices: StateFlow<List<BleDevice>> =
         scanner.devices
@@ -32,12 +33,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun setFilter(text: String) {
-        _filterText.value = text
-    }
-
+    fun setFilter(text: String) { _filterText.value = text }
     fun startScan() = scanner.startScan()
     fun stopScan() = scanner.stopScan()
+    fun clear() = scanner.clear()
 
     fun setKey(mac: String, hexKey: String) {
         viewModelScope.launch { keyStore.setKeyHex(mac, hexKey) }
